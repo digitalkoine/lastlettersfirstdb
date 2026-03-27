@@ -9,18 +9,7 @@ Contiene tre ambienti principali:
 - **Links + trends** (`letters_nlp_lexicon_links_trends.html`)
 - **Hub di accesso** (`index.html`)
 
-## Correzione introdotta
-
-La visualizzazione dentro la stessa pagina poteva risultare limitata, soprattutto quando uno strumento complesso veniva mostrato dentro un `iframe` annidato. Questo produceva una sensazione di spazio ristretto, doppio scrolling o area utile ridotta.
-
-Per risolvere il problema, `index.html` ora include:
-
-- una **workspace estesa** a piena altezza;
-- un pulsante **“Apri in workspace estesa”** per ciascuno strumento;
-- una chiusura rapida con **Esc** o con il pulsante **Chiudi**;
-- la possibilità di aprire ogni tool anche come **pagina standalone**.
-
-In questo modo l'hub resta utile come pagina d'ingresso, ma la consultazione non è più penalizzata dalla visualizzazione annidata.
+## Link: https://digitalkoine.github.io/lastlettersfirstdb/
 
 ## Struttura dei file
 
