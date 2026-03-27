@@ -13,16 +13,23 @@
 }
 * { box-sizing:border-box; }
 html, body { margin:0; padding:0; height:100%; font-family:Inter, Arial, sans-serif; color:var(--ink); background:var(--bg); }
+body.embedded { overflow:hidden; }
 header {
   padding:16px 18px; background:var(--card); border-bottom:1px solid var(--line);
 }
 header h1 { margin:0 0 4px; font-size:24px; }
 header .sub { color:var(--muted); font-size:14px; line-height:1.45; max-width:1100px; }
 #app {
-  display:grid; grid-template-columns: 380px minmax(0, 1fr);
+  display:grid;
+  grid-template-columns: 380px minmax(0, 1fr);
+  grid-template-rows: minmax(420px, 52vh) minmax(0, 1fr);
+  grid-template-areas:
+    "map map"
+    "sidebar details";
   min-height: calc(100vh - 88px);
 }
 aside {
+  grid-area: sidebar;
   border-right:1px solid var(--line); background:var(--card); overflow:auto;
 }
 .sidebar-section {
@@ -75,13 +82,20 @@ button.secondary {
   font-size:11px; padding:4px 7px; border-radius:999px; background:#fff; border:1px solid #d4dfec;
 }
 .main {
-  display:grid; grid-template-rows: 58vh minmax(260px, 1fr);
+  display:contents;
 }
-#map { width:100%; height:100%; }
+#map {
+  grid-area: map;
+  width:100%; height:100%; min-height:420px;
+  border-bottom:1px solid var(--line);
+}
 .details {
-  border-top:1px solid var(--line); background:var(--card); overflow:auto; padding:16px 18px 22px;
+  grid-area: details;
+  background:var(--card); overflow:auto; padding:16px 18px 22px;
 }
 .details h2 { margin:0 0 8px; font-size:22px; }
+.details-toolbar { display:flex; justify-content:space-between; align-items:flex-start; gap:12px; flex-wrap:wrap; margin-bottom:8px; }
+.details-actions { display:flex; gap:8px; flex-wrap:wrap; }
 .meta-grid {
   display:grid; grid-template-columns: repeat(3, minmax(0,1fr)); gap:10px; margin:12px 0 16px;
 }
@@ -117,10 +131,29 @@ button.secondary {
 .leaflet-popup-content-wrapper { border-radius:14px; }
 .popup-title { font-weight:700; margin-bottom:5px; }
 .popup-meta { font-size:12px; color:#4d5c6c; }
+
+body.embedded header { padding:10px 14px; }
+body.embedded header h1 { font-size:20px; margin-bottom:2px; }
+body.embedded header .sub { font-size:12px; line-height:1.35; }
+body.embedded #app {
+  height: calc(100vh - 68px);
+  min-height: calc(100vh - 68px);
+  grid-template-rows: minmax(300px, 40vh) minmax(0, 1fr);
+}
+body.embedded aside,
+body.embedded .details { min-height: 0; }
+
 @media (max-width: 1100px) {
-  #app { grid-template-columns: 1fr; }
+  #app {
+    grid-template-columns: 1fr;
+    grid-template-rows: minmax(320px, 48vh) auto auto;
+    grid-template-areas:
+      "map"
+      "sidebar"
+      "details";
+  }
   aside { max-height:none; border-right:none; border-bottom:1px solid var(--line); }
-  .main { grid-template-rows: 52vh minmax(300px, 1fr); }
+  #map { min-height:320px; }
 }
 @media (max-width: 800px) {
   .meta-grid, .text-columns { grid-template-columns: 1fr; }
@@ -211,11 +244,21 @@ L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
   maxZoom: 18,
   attribution: '&copy; OpenStreetMap contributors'
 }).addTo(map);
+refreshMapLayout();
 
 const markersLayer = L.layerGroup().addTo(map);
 let currentFiltered = [];
 let selectedId = null;
 const markerIndex = new Map();
+
+function refreshMapLayout() {
+  requestAnimationFrame(() => {
+    map.invalidateSize();
+  });
+}
+
+window.addEventListener('load', refreshMapLayout);
+window.addEventListener('resize', refreshMapLayout);
 
 function esc(v) {
   return (v ?? '').toString()
@@ -384,8 +427,16 @@ function showDetails(letterId, zoomIfPossible=false) {
     : `<div class="note">In questo file non è ancora presente una traduzione inglese completa per questa lettera.</div>`;
 
   box.innerHTML = `
-    <h2>${esc(d.full_name)}</h2>
-    <div class="small">${esc(d.writer_type_en || '')}</div>
+    <div class="details-toolbar">
+      <div>
+        <h2>${esc(d.full_name)}</h2>
+        <div class="small">${esc(d.writer_type_en || '')}</div>
+      </div>
+      <div class="details-actions">
+        <button id="clearSelectionBtn" class="secondary">Chiudi scheda</button>
+        <button id="newSearchBtn" class="secondary">Reset e nuova ricerca</button>
+      </div>
+    </div>
     <div class="badges" style="margin-top:10px;">${themeBadges}</div>
     <div class="meta-grid">${metaItems}</div>
     <div class="text-columns">
@@ -403,6 +454,26 @@ function showDetails(letterId, zoomIfPossible=false) {
       <pre>${esc(d.bio_it || '')}</pre>
     </div>
   `;
+
+  const clearBtn = document.getElementById('clearSelectionBtn');
+  if (clearBtn) {
+    clearBtn.addEventListener('click', () => {
+      selectedId = null;
+      renderResults(currentFiltered);
+      document.getElementById('detailsContent').style.display = 'none';
+      document.getElementById('emptyDetails').style.display = 'block';
+      markersLayer.eachLayer(layer => { if (layer.closePopup) layer.closePopup(); });
+    });
+  }
+
+  const newSearchBtn = document.getElementById('newSearchBtn');
+  if (newSearchBtn) {
+    newSearchBtn.addEventListener('click', () => {
+      resetFilters();
+      document.getElementById('searchInput').focus();
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    });
+  }
 
   const marker = markerIndex.get(letterId);
   if (zoomIfPossible && marker) {
@@ -436,11 +507,15 @@ function applyFilters(refit=false) {
 }
 
 function resetFilters() {
+  selectedId = null;
   document.getElementById('searchInput').value = '';
   document.getElementById('dateFrom').value = '';
   document.getElementById('dateTo').value = '';
   document.getElementById('translatedOnly').checked = false;
   document.querySelectorAll('#writerFilters input, #themeFilters input').forEach(el => el.checked = false);
+  document.getElementById('detailsContent').style.display = 'none';
+  document.getElementById('emptyDetails').style.display = 'block';
+  markersLayer.eachLayer(layer => { if (layer.closePopup) layer.closePopup(); });
   applyFilters(true);
 }
 
@@ -455,6 +530,7 @@ document.getElementById('resetBtn').addEventListener('click', resetFilters);
 document.getElementById('fitBtn').addEventListener('click', () => applyFilters(true));
 
 applyFilters(true);
+if (window.self !== window.top) document.body.classList.add('embedded');
 </script>
 </body>
 </html>
